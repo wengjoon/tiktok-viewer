@@ -593,151 +593,168 @@
             loadVideos();
         }
         
-        // Update the processVideo function to correctly extract thumbnail URLs
-function processVideo(video) {
-    console.log('Processing video:', video);
+        // Robust function to extract thumbnail from any TikTok video format
+function getThumbnail(video) {
+  if (!video) return null;
+  
+  // Create an array of all possible paths to check
+  const pathsToCheck = [
+    // Direct string properties (most common)
+    { type: 'string', path: 'cover' },
+    { type: 'string', path: 'origin_cover' },
+    { type: 'string', path: 'dynamic_cover' },
+    { type: 'string', path: 'thumbnail' },
+    { type: 'string', path: 'thumbnail_url' },
     
-    // Get video ID
-    const videoId = video.video_id || video.id || video.aweme_id || '';
+    // Object with url_list properties (very common in TikTok API)
+    { type: 'url_list', path: 'cover.url_list' },
+    { type: 'url_list', path: 'origin_cover.url_list' },
+    { type: 'url_list', path: 'dynamic_cover.url_list' },
+    { type: 'url_list', path: 'thumbnail.url_list' },
     
-    // Get video description
-    let videoDesc = video.desc || video.title || 'No description';
+    // Nested video properties (used in some API formats)
+    { type: 'url_list', path: 'video.cover.url_list' },
+    { type: 'url_list', path: 'video.origin_cover.url_list' },
+    { type: 'url_list', path: 'video.dynamic_cover.url_list' },
+    { type: 'url_list', path: 'video.download_addr.url_list' },
     
-    // Get video cover image - try different possible fields
-    // Default to an empty string if none are found
-    let coverImage = '';
+    // Other potential paths specific to PUBG/TikTok videos
+    { type: 'url_list', path: 'video.ai_dynamic_cover.url_list' },
+    { type: 'url_list', path: 'video.animated_cover.url_list' }
+  ];
+  
+  // Function to safely get a nested property
+  function getNestedProperty(obj, path) {
+    const parts = path.split('.');
+    let current = obj;
     
-    // For images post
-    if (video.images && video.images.length > 0) {
-        coverImage = video.images[0];
-    } else {
-        // For video post - check all possible cover image fields
-        if (video.cover) {
-            coverImage = video.cover;
-        } else if (video.origin_cover) {
-            coverImage = video.origin_cover;
-        } else if (video.ai_dynamic_cover) {
-            coverImage = video.ai_dynamic_cover;
-        } else if (video.thumbnail_url) {
-            coverImage = video.thumbnail_url;
-        } else if (video.thumbnail) {
-            coverImage = video.thumbnail;
-        } else if (video.covers && video.covers.length > 0) {
-            coverImage = video.covers[0];
-        } else {
-            coverImage = 'https://via.placeholder.com/300x400?text=No+Preview';
-        }
+    for (const part of parts) {
+      if (current === undefined || current === null) {
+        return undefined;
+      }
+      
+      current = current[part];
     }
     
-    // For debugging
-    console.log('Extracted thumbnail URL:', coverImage);
+    return current;
+  }
+  
+  // Check each path
+  for (const { type, path } of pathsToCheck) {
+    const value = getNestedProperty(video, path);
     
-    // Get video URL - try different possible fields
-    const videoUrl = video.play || 
-                    video.play_url || 
-                    video.download_url || 
-                    (video.video && video.video.play_addr && video.video.play_addr.url_list && 
-                     video.video.play_addr.url_list.length > 0 ? video.video.play_addr.url_list[0] : '') || 
-                    '';
+    if (type === 'string' && typeof value === 'string' && value) {
+      return value;
+    }
     
-    // Get stats - ensure we have defaults in case fields don't exist
-    const playCount = parseInt(video.play_count || '0', 10);
-    const likeCount = parseInt(video.digg_count || '0', 10);
-    const commentCount = parseInt(video.comment_count || '0', 10);
-    const shareCount = parseInt(video.share_count || '0', 10);
-    
-    // Get author info
-    const author = video.author || {};
-    const authorName = author.nickname || video.author_name || '';
-    const authorAvatar = author.avatar || video.author_avatar || '';
-    const authorUniqueId = author.unique_id || video.author_unique_id || '';
-    
-    // Determine if this is an image post or video post
-    const isImagePost = video.images && video.images.length > 0;
-    
-    return {
-        id: videoId,
-        description: videoDesc,
-        coverImage: coverImage,
-        videoUrl: videoUrl,
-        isImagePost: isImagePost,
-        images: video.images || [],
-        stats: {
-            playCount,
-            likeCount,
-            commentCount,
-            shareCount
-        },
-        author: {
-            name: authorName,
-            avatar: authorAvatar,
-            uniqueId: authorUniqueId
-        },
-        createTime: video.create_time || 0
-    };
+    if (type === 'url_list' && Array.isArray(value) && value.length > 0) {
+      return value[0];
+    }
+  }
+  
+  // Special handling for common PUBG TikTok format with cover at root
+  if (video.cover && typeof video.cover === 'object') {
+    // Try to extract URL directly from the cover object
+    if (video.cover.url_list && Array.isArray(video.cover.url_list) && video.cover.url_list.length > 0) {
+      return video.cover.url_list[0];
+    }
+  }
+  
+  return null;
 }
+
+// Updated processVideo function with robust thumbnail extraction
+function processVideo(video) {
+  // Debug logging to help diagnose issues
+  console.log('Processing video:', video.id || video.video_id || 'unknown');
+  
+  // Get video ID with fallbacks
+  const videoId = video.id || video.video_id || video.aweme_id || '';
+  
+  // Get video description with fallbacks
+  let videoDesc = video.desc || video.title || 'No description';
+  
+  // Get thumbnail using our robust extraction function
+  let coverImage = getThumbnail(video);
+  
+  // For debugging
+  console.log('Extracted thumbnail:', coverImage);
+  
+  // Default placeholder if no thumbnail found
+  if (!coverImage) {
+    coverImage = 'https://via.placeholder.com/300x400?text=No+Preview';
+  }
+  
+  // Get video URL with fallbacks
+  let videoUrl = '';
+  if (typeof video.play === 'string') {
+    videoUrl = video.play;
+  } else if (typeof video.play_url === 'string') {
+    videoUrl = video.play_url;
+  } else if (video.video && video.video.play_addr && video.video.play_addr.url_list && 
+            video.video.play_addr.url_list.length > 0) {
+    videoUrl = video.video.play_addr.url_list[0];
+  } else if (typeof video.download_url === 'string') {
+    videoUrl = video.download_url;
+  }
+  
+  // Get stats with safe defaults
+  const stats = {
+    playCount: parseInt(video.play_count || (video.stats ? video.stats.play_count : 0) || '0', 10),
+    likeCount: parseInt(video.digg_count || (video.stats ? video.stats.digg_count : 0) || '0', 10),
+    commentCount: parseInt(video.comment_count || (video.stats ? video.stats.comment_count : 0) || '0', 10),
+    shareCount: parseInt(video.share_count || (video.stats ? video.stats.share_count : 0) || '0', 10)
+  };
+  
+  // Get author info with fallbacks
+  const author = video.author || {};
+  const authorInfo = {
+    name: author.nickname || video.author_name || '',
+    avatar: author.avatar || video.author_avatar || '',
+    uniqueId: author.unique_id || video.author_unique_id || ''
+  };
+  
+  // Determine if this is an image post or video post
+  const isImagePost = video.images && Array.isArray(video.images) && video.images.length > 0;
+  
+  return {
+    id: videoId,
+    description: videoDesc,
+    coverImage: coverImage,
+    videoUrl: videoUrl,
+    isImagePost: isImagePost,
+    images: video.images || [],
+    stats: stats,
+    author: authorInfo,
+    createTime: video.create_time || 0
+  };
+}
+// Add debug functions to help trace the issue
+function addDebugTools() {
+    // Add a button to log API response data
+    const header = document.querySelector('header');
+    const debugBtn = document.createElement('button');
+    debugBtn.innerText = 'Debug Data';
+    debugBtn.className = 'px-4 py-2 bg-red-600 text-white rounded';
+    debugBtn.onclick = () => {
+        console.log('Current videos array:', currentVideos);
         
-        function loadVideos() {
-            if (isLoading) return;
-            
-            isLoading = true;
-            document.getElementById('loadingIndicator').classList.remove('hidden');
-            document.getElementById('loadMoreContainer').classList.add('hidden');
-            
-            const endpoint = activeTab === 'posts' 
-                ? `/api/user/${userId}/videos` 
-                : `/api/user/${userId}/popular`;
-            
-            console.log(`Loading videos from ${endpoint}?cursor=${currentCursor}`);
-            
-            fetch(`${endpoint}?cursor=${currentCursor}`)
-                .then(response => response.json())
-                .then(data => {
-                    isLoading = false;
-                    document.getElementById('loadingIndicator').classList.add('hidden');
-                    
-                    console.log('API Response:', data);
-                    
-                    if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
-                        // Process and render videos
-                        renderVideos(data.videos);
-                        
-                        // Update cursor for next page
-                        if (data.hasMore) {
-                            currentCursor = data.cursor;
-                            document.getElementById('loadMoreContainer').classList.remove('hidden');
-                        } else {
-                            document.getElementById('loadMoreContainer').classList.add('hidden');
-                        }
-                    } else {
-                        // No videos or end of results
-                        document.getElementById('loadMoreContainer').classList.add('hidden');
-                        if (currentCursor === 0) {
-                            document.getElementById('videosContainer').innerHTML = `
-                                <div class="col-span-full text-center py-8">
-                                    <p class="text-gray-400">No videos found for this account.</p>
-                                </div>
-                            `;
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading videos:', error);
-                    isLoading = false;
-                    document.getElementById('loadingIndicator').classList.add('hidden');
-                    document.getElementById('loadMoreContainer').classList.add('hidden');
-                    
-                    if (currentCursor === 0) {
-                        document.getElementById('videosContainer').innerHTML = `
-                            <div class="col-span-full text-center py-8">
-                                <p class="text-gray-400">Failed to load videos. Please try again later.</p>
-                            </div>
-                        `;
-                    }
-                });
-        }
-        
-        // Update the renderVideos function to ensure thumbnails display correctly
+        // Test load videos function
+        fetch(`/api/user/${userId}/videos?cursor=0`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('API Raw Response:', data);
+                if (data.videos && data.videos.length > 0) {
+                    console.log('First video raw data:', data.videos[0]);
+                    console.log('First video processed:', processVideo(data.videos[0]));
+                }
+            })
+            .catch(err => console.error('Debug fetch error:', err));
+    };
+    header.appendChild(debugBtn);
+}
+
+// Fixed renderVideos function with explicit height for thumbnails
 function renderVideos(videos) {
     const container = document.getElementById('videosContainer');
     
@@ -745,6 +762,9 @@ function renderVideos(videos) {
         // Process the video to normalize data structure
         const processedVideo = processVideo(video);
         currentVideos.push(processedVideo);
+        
+        // Debug the thumbnail URL
+        console.log("Rendering video:", processedVideo.id, "Thumbnail URL:", processedVideo.coverImage);
         
         // Create video card
         const videoCard = document.createElement('div');
@@ -755,18 +775,16 @@ function renderVideos(videos) {
         const formattedViews = formatNumber(processedVideo.stats.playCount);
         const formattedLikes = formatNumber(processedVideo.stats.likeCount);
         
-        // Debug the thumbnail URL
-        console.log(`Rendering video ${processedVideo.id} with thumbnail: ${processedVideo.coverImage}`);
-        
         // Check if we have images (for photo posts) or just a regular video
-        if (video.images && video.images.length > 0) {
+        if (processedVideo.isImagePost) {
             // This is a photo post
             videoCard.innerHTML = `
-                <div class="video-thumbnail relative pb-[177%]">
+                <div class="video-thumbnail relative" style="height: 300px; overflow: hidden;">
                     <img 
-                        src="${video.images[0]}" 
+                        src="${processedVideo.images[0]}" 
                         alt="${processedVideo.description}" 
-                        class="absolute top-0 left-0 w-full h-full object-cover"
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;"
+                        onerror="this.onerror=null; this.src='https://via.placeholder.com/300x400?text=Image+Error'; console.log('Image error for: ' + this.src);"
                         loading="lazy"
                     >
                     <div class="absolute top-2 right-2 bg-black bg-opacity-50 px-2 py-1 rounded-full">
@@ -781,14 +799,14 @@ function renderVideos(videos) {
                 </div>
             `;
         } else {
-            // This is a regular video post
+            // This is a regular video post - using inline styles to ensure rendering
             videoCard.innerHTML = `
-                <div class="video-thumbnail relative pb-[177%]">
+                <div class="video-thumbnail relative" style="height: 300px; overflow: hidden;">
                     <img 
                         src="${processedVideo.coverImage}" 
                         alt="${processedVideo.description}" 
-                        class="absolute top-0 left-0 w-full h-full object-cover"
-                        onerror="this.onerror=null; this.src='https://via.placeholder.com/300x400?text=Thumbnail+Error';"
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;"
+                        onerror="this.onerror=null; this.src='https://via.placeholder.com/300x400?text=Thumbnail+Error'; console.log('Image error for: ' + this.src);"
                         loading="lazy"
                     >
                     <div class="play-button">
@@ -807,7 +825,123 @@ function renderVideos(videos) {
         container.appendChild(videoCard);
     });
 }
+
+// Validation function to help debug image loading issues
+function validateThumbnails() {
+    // Check if thumbnails are actually being loaded
+    const imgElements = document.querySelectorAll('.video-thumbnail img');
+    console.log('Found ' + imgElements.length + ' thumbnail images');
+    
+    imgElements.forEach((img, index) => {
+        console.log('Thumbnail ' + (index + 1) + ' src: ' + img.src);
+        console.log('Thumbnail ' + (index + 1) + ' dimensions: ' + 
+                  img.offsetWidth + 'x' + img.offsetHeight);
         
+        // Force reload the image if it has no dimensions
+        if (img.offsetWidth === 0 || img.offsetHeight === 0) {
+            console.log('Thumbnail has no dimensions, attempting reload');
+            const originalSrc = img.src;
+            img.src = '';
+            img.style.border = "1px solid red"; // Make failed images obvious
+            setTimeout(() => { img.src = originalSrc; }, 100);
+        }
+    });
+}
+// Modified loadVideos function with better error handling
+function loadVideos() {
+    if (isLoading) return;
+    
+    isLoading = true;
+    document.getElementById('loadingIndicator').classList.remove('hidden');
+    document.getElementById('loadMoreContainer').classList.add('hidden');
+    
+    const endpoint = activeTab === 'posts' 
+        ? `/api/user/${userId}/videos` 
+        : `/api/user/${userId}/popular`;
+    
+    console.log(`Loading videos from ${endpoint}?cursor=${currentCursor}`);
+    
+    fetch(`${endpoint}?cursor=${currentCursor}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`API response error: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            isLoading = false;
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            
+            console.log('API Response:', data);
+            
+            if (!data) {
+                throw new Error('API returned null or undefined data');
+            }
+            
+            if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
+                console.log(`Got ${data.videos.length} videos from API`);
+                
+                // Process and render videos
+                renderVideos(data.videos);
+                
+                // Update cursor for next page
+                if (data.hasMore) {
+                    currentCursor = data.cursor;
+                    document.getElementById('loadMoreContainer').classList.remove('hidden');
+                } else {
+                    document.getElementById('loadMoreContainer').classList.add('hidden');
+                }
+            } else {
+                console.warn('No videos found in API response');
+                // No videos or end of results
+                document.getElementById('loadMoreContainer').classList.add('hidden');
+                if (currentCursor === 0) {
+                    document.getElementById('videosContainer').innerHTML = `
+                        <div class="col-span-full text-center py-8">
+                            <p class="text-gray-400">No videos found for this account.</p>
+                        </div>
+                    `;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading videos:', error);
+            isLoading = false;
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            document.getElementById('loadMoreContainer').classList.add('hidden');
+            
+            if (currentCursor === 0) {
+                document.getElementById('videosContainer').innerHTML = `
+                    <div class="col-span-full text-center py-8">
+                        <p class="text-gray-400">Failed to load videos: ${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+}
+
+// Add this to your document.addEventListener('DOMContentLoaded'...) function
+document.addEventListener('DOMContentLoaded', function() {
+    loadVideos();
+    
+    // Initialize video player
+    videoPlayer = document.getElementById('videoPlayer');
+    
+    // Set up video player event listeners
+    setupVideoPlayer();
+    
+    // Add debugging tools
+    addDebugTools();
+    
+    // Add infinite scroll
+    window.addEventListener('scroll', function() {
+        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
+            if (!isLoading) {
+                loadVideos();
+            }
+        }
+    });
+});     
         function formatNumber(num) {
             if (num >= 1000000) {
                 return (num / 1000000).toFixed(1) + 'M';
