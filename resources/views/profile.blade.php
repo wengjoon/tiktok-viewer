@@ -40,16 +40,81 @@
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 16px;
         }
+
         .video-card {
             background-color: #1F1F1F;
             border-radius: 8px;
             overflow: hidden;
-            transition: transform 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s;
             cursor: pointer;
         }
+
         .video-card:hover {
             transform: scale(1.03);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
+
+        .video-thumbnail {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .video-thumbnail img {
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .video-card:hover .video-thumbnail img {
+            transform: scale(1.05);
+        }
+
+        .play-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.2);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0.8;
+            transition: all 0.2s ease;
+        }
+
+        .play-button i {
+            color: white;
+            font-size: 24px;
+        }
+
+        .video-card:hover .play-button {
+            background-color: rgba(255, 255, 255, 0.4);
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        .video-thumbnail::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(0deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 40%);
+            pointer-events: none;
+        }
+
+        /* Line clamp for descriptions */
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .loading-spinner {
             border-top-color: #FE2C55;
             border-left-color: #FE2C55;
@@ -146,47 +211,7 @@
             cursor: pointer;
             z-index: 60;
         }
-        
-        .play-button {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(255, 255, 255, 0.2);
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            pointer-events: none;
-        }
-        
-        .play-button i {
-            color: white;
-            font-size: 24px;
-        }
-
-        /* Additional hover effects */
-        .video-thumbnail {
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .video-thumbnail:hover::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.3);
-        }
-        
-        .video-thumbnail:hover .play-button {
-            background-color: rgba(255, 255, 255, 0.4);
-        }
-        
+                
         /* Video controls */
         .video-controls {
             position: absolute;
@@ -266,6 +291,99 @@
             text-align: center;
             padding: 20px;
         }
+
+        /* Image Carousel Styles */
+        .image-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        .image-carousel {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .carousel-item {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .carousel-item.active {
+            opacity: 1;
+            z-index: 1;
+        }
+
+        .carousel-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .carousel-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .carousel-nav:hover {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        .carousel-nav.prev {
+            left: 10px;
+        }
+
+        .carousel-nav.next {
+            right: 10px;
+        }
+
+        .carousel-indicators {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .indicator.active, .indicator:hover {
+            background-color: white;
+        }
     </style>
 </head>
 <body>
@@ -295,10 +413,10 @@
         </header>
         
         @if(session('warning'))
-    <div class="bg-yellow-800 border border-yellow-700 text-yellow-200 px-4 py-3 my-4 mx-6 rounded relative" role="alert">
-        <span class="block sm:inline">{{ session('warning') }}</span>
-    </div>
-@endif
+            <div class="bg-yellow-800 border border-yellow-700 text-yellow-200 px-4 py-3 my-4 mx-6 rounded relative" role="alert">
+                <span class="block sm:inline">{{ session('warning') }}</span>
+            </div>
+        @endif
         
         <!-- Profile Info -->
         <div class="px-6 py-8 border-b border-gray-800">
@@ -387,6 +505,9 @@
                 
                 <video id="videoPlayer" class="video-player" controlsList="nodownload" playsinline></video>
                 
+                <!-- Add image container for photo posts -->
+                <div id="imageContainer" class="image-container" style="display: none;"></div>
+                
                 <div id="videoError" class="error-message hidden">
                     Unable to load video. The API may have restrictions.
                 </div>
@@ -427,6 +548,7 @@
         const userId = '{{ $userId }}';
         let currentVideos = []; // Store all loaded videos
         let videoPlayer = null;
+        let currentSlide = 0;
         
         // Load videos when page loads
         document.addEventListener('DOMContentLoaded', function() {
@@ -471,7 +593,7 @@
             loadVideos();
         }
         
-        // Helper function to process videos with different structures
+        // Update the processVideo function to correctly extract thumbnail URLs
 function processVideo(video) {
     console.log('Processing video:', video);
     
@@ -482,12 +604,38 @@ function processVideo(video) {
     let videoDesc = video.desc || video.title || 'No description';
     
     // Get video cover image - try different possible fields
-    const coverImage = video.cover || video.origin_cover || video.thumbnail_url || 
-                       (video.covers && video.covers.length > 0 ? video.covers[0] : '') || 
-                       '';
+    // Default to an empty string if none are found
+    let coverImage = '';
+    
+    // For images post
+    if (video.images && video.images.length > 0) {
+        coverImage = video.images[0];
+    } else {
+        // For video post - check all possible cover image fields
+        if (video.cover) {
+            coverImage = video.cover;
+        } else if (video.origin_cover) {
+            coverImage = video.origin_cover;
+        } else if (video.ai_dynamic_cover) {
+            coverImage = video.ai_dynamic_cover;
+        } else if (video.thumbnail_url) {
+            coverImage = video.thumbnail_url;
+        } else if (video.thumbnail) {
+            coverImage = video.thumbnail;
+        } else if (video.covers && video.covers.length > 0) {
+            coverImage = video.covers[0];
+        } else {
+            coverImage = 'https://via.placeholder.com/300x400?text=No+Preview';
+        }
+    }
+    
+    // For debugging
+    console.log('Extracted thumbnail URL:', coverImage);
     
     // Get video URL - try different possible fields
-    const videoUrl = video.play || video.play_url || video.download_url || 
+    const videoUrl = video.play || 
+                    video.play_url || 
+                    video.download_url || 
                     (video.video && video.video.play_addr && video.video.play_addr.url_list && 
                      video.video.play_addr.url_list.length > 0 ? video.video.play_addr.url_list[0] : '') || 
                     '';
@@ -504,11 +652,16 @@ function processVideo(video) {
     const authorAvatar = author.avatar || video.author_avatar || '';
     const authorUniqueId = author.unique_id || video.author_unique_id || '';
     
+    // Determine if this is an image post or video post
+    const isImagePost = video.images && video.images.length > 0;
+    
     return {
         id: videoId,
         description: videoDesc,
         coverImage: coverImage,
         videoUrl: videoUrl,
+        isImagePost: isImagePost,
+        images: video.images || [],
         stats: {
             playCount,
             likeCount,
@@ -519,68 +672,141 @@ function processVideo(video) {
             name: authorName,
             avatar: authorAvatar,
             uniqueId: authorUniqueId
-        }
+        },
+        createTime: video.create_time || 0
     };
 }
+
+// Update the renderVideos function to ensure thumbnails display correctly
+function renderVideos(videos) {
+    const container = document.getElementById('videosContainer');
+    
+    videos.forEach(video => {
+        // Process the video to normalize data structure
+        const processedVideo = processVideo(video);
+        currentVideos.push(processedVideo);
+        
+        // Create video card
+        const videoCard = document.createElement('div');
+        videoCard.className = 'video-card';
+        videoCard.onclick = () => openVideoPopup(processedVideo.id);
+        
+        // Format stats
+        const formattedViews = formatNumber(processedVideo.stats.playCount);
+        const formattedLikes = formatNumber(processedVideo.stats.likeCount);
+        
+        // Debug the thumbnail URL
+        console.log(`Rendering video ${processedVideo.id} with thumbnail: ${processedVideo.coverImage}`);
+        
+        // Check if we have images (for photo posts) or just a regular video
+        if (video.images && video.images.length > 0) {
+            // This is a photo post
+            videoCard.innerHTML = `
+                <div class="video-thumbnail relative pb-[177%]">
+                    <img 
+                        src="${video.images[0]}" 
+                        alt="${processedVideo.description}" 
+                        class="absolute top-0 left-0 w-full h-full object-cover"
+                        loading="lazy"
+                    >
+                    <div class="absolute top-2 right-2 bg-black bg-opacity-50 px-2 py-1 rounded-full">
+                        <i class="fas fa-images text-white"></i>
+                    </div>
+                    <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-xs text-white">
+                        <i class="fas fa-heart mr-1"></i>${formattedLikes}
+                    </div>
+                </div>
+                <div class="p-3">
+                    <p class="text-sm line-clamp-2">${processedVideo.description}</p>
+                </div>
+            `;
+        } else {
+            // This is a regular video post
+            videoCard.innerHTML = `
+                <div class="video-thumbnail relative pb-[177%]">
+                    <img 
+                        src="${processedVideo.coverImage}" 
+                        alt="${processedVideo.description}" 
+                        class="absolute top-0 left-0 w-full h-full object-cover"
+                        onerror="this.onerror=null; this.src='https://via.placeholder.com/300x400?text=Thumbnail+Error';"
+                        loading="lazy"
+                    >
+                    <div class="play-button">
+                        <i class="fas fa-play"></i>
+                    </div>
+                    <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-xs text-white">
+                        <i class="fas fa-play mr-1"></i>${formattedViews}
+                    </div>
+                </div>
+                <div class="p-3">
+                    <p class="text-sm line-clamp-2">${processedVideo.description}</p>
+                </div>
+            `;
+        }
+        
+        container.appendChild(videoCard);
+    });
+}
+        
         function loadVideos() {
-    if (isLoading) return;
-    
-    isLoading = true;
-    document.getElementById('loadingIndicator').classList.remove('hidden');
-    document.getElementById('loadMoreContainer').classList.add('hidden');
-    
-    const endpoint = activeTab === 'posts' 
-        ? `/api/user/${userId}/videos` 
-        : `/api/user/${userId}/popular`;
-    
-    console.log(`Loading videos from ${endpoint}?cursor=${currentCursor}`);
-    
-    fetch(`${endpoint}?cursor=${currentCursor}`)
-        .then(response => response.json())
-        .then(data => {
-            isLoading = false;
-            document.getElementById('loadingIndicator').classList.add('hidden');
+            if (isLoading) return;
             
-            console.log('API Response:', data);
-            
-            if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
-                // Process and render videos
-                renderVideos(data.videos);
-                
-                // Update cursor for next page
-                if (data.hasMore) {
-                    currentCursor = data.cursor;
-                    document.getElementById('loadMoreContainer').classList.remove('hidden');
-                } else {
-                    document.getElementById('loadMoreContainer').classList.add('hidden');
-                }
-            } else {
-                // No videos or end of results
-                document.getElementById('loadMoreContainer').classList.add('hidden');
-                if (currentCursor === 0) {
-                    document.getElementById('videosContainer').innerHTML = `
-                        <div class="col-span-full text-center py-8">
-                            <p class="text-gray-400">No videos found for this account.</p>
-                        </div>
-                    `;
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Error loading videos:', error);
-            isLoading = false;
-            document.getElementById('loadingIndicator').classList.add('hidden');
+            isLoading = true;
+            document.getElementById('loadingIndicator').classList.remove('hidden');
             document.getElementById('loadMoreContainer').classList.add('hidden');
             
-            if (currentCursor === 0) {
-                document.getElementById('videosContainer').innerHTML = `
-                    <div class="col-span-full text-center py-8">
-                        <p class="text-gray-400">Failed to load videos. Please try again later.</p>
-                    </div>
-                `;
-            }
-        });
-}
+            const endpoint = activeTab === 'posts' 
+                ? `/api/user/${userId}/videos` 
+                : `/api/user/${userId}/popular`;
+            
+            console.log(`Loading videos from ${endpoint}?cursor=${currentCursor}`);
+            
+            fetch(`${endpoint}?cursor=${currentCursor}`)
+                .then(response => response.json())
+                .then(data => {
+                    isLoading = false;
+                    document.getElementById('loadingIndicator').classList.add('hidden');
+                    
+                    console.log('API Response:', data);
+                    
+                    if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
+                        // Process and render videos
+                        renderVideos(data.videos);
+                        
+                        // Update cursor for next page
+                        if (data.hasMore) {
+                            currentCursor = data.cursor;
+                            document.getElementById('loadMoreContainer').classList.remove('hidden');
+                        } else {
+                            document.getElementById('loadMoreContainer').classList.add('hidden');
+                        }
+                    } else {
+                        // No videos or end of results
+                        document.getElementById('loadMoreContainer').classList.add('hidden');
+                        if (currentCursor === 0) {
+                            document.getElementById('videosContainer').innerHTML = `
+                                <div class="col-span-full text-center py-8">
+                                    <p class="text-gray-400">No videos found for this account.</p>
+                                </div>
+                            `;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading videos:', error);
+                    isLoading = false;
+                    document.getElementById('loadingIndicator').classList.add('hidden');
+                    document.getElementById('loadMoreContainer').classList.add('hidden');
+                    
+                    if (currentCursor === 0) {
+                        document.getElementById('videosContainer').innerHTML = `
+                            <div class="col-span-full text-center py-8">
+                                <p class="text-gray-400">Failed to load videos. Please try again later.</p>
+                            </div>
+                        `;
+                    }
+                });
+        }
         
         function renderVideos(videos) {
             const container = document.getElementById('videosContainer');
@@ -597,26 +823,52 @@ function processVideo(video) {
                 
                 // Format stats
                 const formattedViews = formatNumber(processedVideo.stats.playCount);
+                const formattedLikes = formatNumber(processedVideo.stats.likeCount);
                 
-                videoCard.innerHTML = `
-                    <div class="video-thumbnail relative pb-[177%]">
-                        <img 
-                            src="${processedVideo.coverImage}" 
-                            alt="${processedVideo.description}" 
-                            class="absolute top-0 left-0 w-full h-full object-cover"
-                            loading="lazy"
-                        >
-                        <div class="play-button">
-                            <i class="fas fa-play"></i>
+                // Check if we have images (for photo posts) or just a regular video
+                if (video.images && video.images.length > 0) {
+                    // This is a photo post
+                    videoCard.innerHTML = `
+                        <div class="video-thumbnail relative pb-[177%]">
+                            <img 
+                                src="${video.images[0]}" 
+                                alt="${processedVideo.description}" 
+                                class="absolute top-0 left-0 w-full h-full object-cover"
+                                loading="lazy"
+                            >
+                            <div class="absolute top-2 right-2 bg-black bg-opacity-50 px-2 py-1 rounded-full">
+                                <i class="fas fa-images text-white"></i>
+                            </div>
+                            <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-xs text-white">
+                                <i class="fas fa-heart mr-1"></i>${formattedLikes}
+                            </div>
                         </div>
-                        <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-xs">
-                            <i class="fas fa-play mr-1"></i>${formattedViews}
+                        <div class="p-3">
+                            <p class="text-sm line-clamp-2">${processedVideo.description}</p>
                         </div>
-                    </div>
-                    <div class="p-3">
-                        <p class="text-sm line-clamp-2">${processedVideo.description}</p>
-                    </div>
-                `;
+                    `;
+                } else {
+                    // This is a regular video post
+                    videoCard.innerHTML = `
+                        <div class="video-thumbnail relative pb-[177%]">
+                            <img 
+                                src="${processedVideo.coverImage}" 
+                                alt="${processedVideo.description}" 
+                                class="absolute top-0 left-0 w-full h-full object-cover"
+                                loading="lazy"
+                            >
+                            <div class="play-button">
+                                <i class="fas fa-play"></i>
+                            </div>
+                            <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-xs text-white">
+                                <i class="fas fa-play mr-1"></i>${formattedViews}
+                            </div>
+                        </div>
+                        <div class="p-3">
+                            <p class="text-sm line-clamp-2">${processedVideo.description}</p>
+                        </div>
+                    `;
+                }
                 
                 container.appendChild(videoCard);
             });
@@ -647,6 +899,13 @@ function processVideo(video) {
             videoPlayer.src = '';
             videoPlayer.style.display = 'none';
             
+            // Get container for image slideshow (if needed)
+            const imageContainer = document.getElementById('imageContainer');
+            if (imageContainer) {
+                imageContainer.style.display = 'none';
+                imageContainer.innerHTML = '';
+            }
+            
             // Show loading spinner
             document.getElementById('videoLoading').style.display = 'flex';
             document.getElementById('videoError').classList.add('hidden');
@@ -668,32 +927,107 @@ function processVideo(video) {
                 <div class="flex space-x-4 text-sm text-gray-400">
                     <div><i class="fas fa-play mr-1"></i>${formatNumber(video.stats.playCount)}</div>
                     <div><i class="fas fa-heart mr-1"></i>${formatNumber(video.stats.likeCount)}</div>
-                    <div><i class="fas fa-comment mr-1"></i>${formatNumber(video.stats.commentCount)}</div>
+                    <div><i class="fas fa-comment mr-1"></i>
+                    ${formatNumber(video.stats.commentCount)}</div>
                     <div><i class="fas fa-share mr-1"></i>${formatNumber(video.stats.shareCount)}</div>
                 </div>
             `;
             
-            // Load video
-            if (video.videoUrl) {
-                videoPlayer.src = video.videoUrl;
-                videoPlayer.load();
-                
-                videoPlayer.oncanplay = function() {
-                    document.getElementById('videoLoading').style.display = 'none';
-                    videoPlayer.style.display = 'block';
-                    videoPlayer.play().catch(e => {
-                        console.error('Video play failed:', e);
-                        // Many browsers require user interaction for autoplay
+            // Check if this is an image post or video post
+            if (video.isImagePost && video.images && video.images.length > 0) {
+                // This is an image post - create image carousel
+                if (imageContainer) {
+                    videoPlayer.style.display = 'none';
+                    imageContainer.style.display = 'block';
+                    imageContainer.innerHTML = '';
+                    
+                    // Create image carousel
+                    const carousel = document.createElement('div');
+                    carousel.className = 'image-carousel';
+                    
+                    video.images.forEach((imageUrl, index) => {
+                        const imgDiv = document.createElement('div');
+                        imgDiv.className = 'carousel-item' + (index === 0 ? ' active' : '');
+                        
+                        const img = document.createElement('img');
+                        img.src = imageUrl;
+                        img.alt = `Image ${index + 1}`;
+                        img.className = 'carousel-image';
+                        
+                        imgDiv.appendChild(img);
+                        carousel.appendChild(imgDiv);
                     });
-                };
+                    
+                    // Add navigation buttons if there are multiple images
+                    if (video.images.length > 1) {
+                        const prevBtn = document.createElement('button');
+                        prevBtn.className = 'carousel-nav prev';
+                        prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+                        prevBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            navigateCarousel(-1);
+                        };
+                        
+                        const nextBtn = document.createElement('button');
+                        nextBtn.className = 'carousel-nav next';
+                        nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+                        nextBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            navigateCarousel(1);
+                        };
+                        
+                        // Add indicators for multiple images
+                        const indicators = document.createElement('div');
+                        indicators.className = 'carousel-indicators';
+                        
+                        for (let i = 0; i < video.images.length; i++) {
+                            const dot = document.createElement('span');
+                            dot.className = 'indicator' + (i === 0 ? ' active' : '');
+                            dot.onclick = (e) => {
+                                e.stopPropagation();
+                                goToSlide(i);
+                            };
+                            indicators.appendChild(dot);
+                        }
+                        
+                        imageContainer.appendChild(carousel);
+                        imageContainer.appendChild(prevBtn);
+                        imageContainer.appendChild(nextBtn);
+                        imageContainer.appendChild(indicators);
+                    } else {
+                        // Just add the carousel for a single image
+                        imageContainer.appendChild(carousel);
+                    }
+                    
+                    document.getElementById('videoLoading').style.display = 'none';
+                }
+            } else {
+                // This is a video post - use the video player
+                if (imageContainer) {
+                    imageContainer.style.display = 'none';
+                }
                 
-                videoPlayer.onerror = function() {
+                if (video.videoUrl) {
+                    videoPlayer.src = video.videoUrl;
+                    videoPlayer.load();
+                    
+                    videoPlayer.oncanplay = function() {
+                        document.getElementById('videoLoading').style.display = 'none';
+                        videoPlayer.style.display = 'block';
+                        videoPlayer.play().catch(e => {
+                            console.error('Video play failed:', e);
+                            // Many browsers require user interaction for autoplay
+                        });
+                    };
+                    
+                    videoPlayer.onerror = function() {
+                        document.getElementById('videoLoading').style.display = 'none';
+                        document.getElementById('videoError').classList.remove('hidden');
+                    };
+                } else {
                     document.getElementById('videoLoading').style.display = 'none';
                     document.getElementById('videoError').classList.remove('hidden');
-                };
-            } else {
-                document.getElementById('videoLoading').style.display = 'none';
-                document.getElementById('videoError').classList.remove('hidden');
+                }
             }
         }
         
@@ -706,6 +1040,50 @@ function processVideo(video) {
             const videoPlayer = document.getElementById('videoPlayer');
             videoPlayer.pause();
             videoPlayer.src = '';
+            
+            // Reset currentSlide for carousel
+            currentSlide = 0;
+        }
+        
+        // Carousel navigation functions
+        function navigateCarousel(direction) {
+            const items = document.querySelectorAll('.carousel-item');
+            const indicators = document.querySelectorAll('.indicator');
+            
+            if (items.length === 0) return;
+            
+            // Remove active class from current slide
+            items[currentSlide].classList.remove('active');
+            if (indicators.length > 0) {
+                indicators[currentSlide].classList.remove('active');
+            }
+            
+            // Calculate new slide index
+            currentSlide = (currentSlide + direction + items.length) % items.length;
+            
+            // Add active class to new slide
+            items[currentSlide].classList.add('active');
+            if (indicators.length > 0) {
+                indicators[currentSlide].classList.add('active');
+            }
+        }
+
+        function goToSlide(index) {
+            const items = document.querySelectorAll('.carousel-item');
+            const indicators = document.querySelectorAll('.indicator');
+            
+            if (items.length === 0 || index < 0 || index >= items.length) return;
+            
+            // Remove active class from all slides and indicators
+            items.forEach(item => item.classList.remove('active'));
+            indicators.forEach(indicator => indicator.classList.remove('active'));
+            
+            // Add active class to selected slide and indicator
+            items[index].classList.add('active');
+            indicators[index].classList.add('active');
+            
+            // Update current slide
+            currentSlide = index;
         }
         
         function setupVideoPlayer() {
