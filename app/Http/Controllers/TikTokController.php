@@ -40,44 +40,49 @@ class TikTokController extends Controller
         Log::info('Fetching user profile for username: ' . $username);
         
         try {
-            // For simplicity, we'll use a static mapping for some common usernames
-            // In a production app, you would implement a proper search functionality
-            $userIdMapping = [
-                'tiktok' => '107955',
-                // Add more mappings if needed
+            // For certain usernames, we know the user_id (for demo purposes)
+            $knownUserIds = [
+                'tiktok' => '107955'
             ];
             
-            // If we have a direct mapping, use it
-            if (isset($userIdMapping[strtolower($username)])) {
-                $userId = $userIdMapping[strtolower($username)];
+            $params = [];
+            if (isset($knownUserIds[strtolower($username)])) {
+                $params['user_id'] = $knownUserIds[strtolower($username)];
+                Log::info('Using known user_id: ' . $params['user_id']);
             } else {
-                // For demo purposes, we'll use the TikTok official account
-                $userId = '107955';
-                // In a real implementation, you would search for the user ID here
+                $params['unique_id'] = $username;
+                Log::info('Using unique_id parameter: ' . $params['unique_id']);
             }
             
             $response = Http::withHeaders([
                 'x-rapidapi-host' => $this->apiHost,
                 'x-rapidapi-key' => $this->apiKey,
-            ])->get('https://' . $this->apiHost . '/user/info', [
-                'user_id' => $userId,
-            ]);
+            ])->get('https://' . $this->apiHost . '/user/info', $params);
+            
+            Log::info('API Response Status: ' . $response->status());
             
             if ($response->successful()) {
                 $userData = $response->json();
                 
-                Log::info('API Response: ' . json_encode(array_keys($userData)));
+                Log::info('API Response Structure: ' . json_encode(array_keys($userData)));
                 
-                if (isset($userData['data']) && isset($userData['data']['user'])) {
+                if ($userData['code'] === 0 && isset($userData['data']) && isset($userData['data']['user'])) {
                     $user = $userData['data']['user'];
                     $stats = $userData['data']['stats'] ?? [];
                     
-                    // Merge stats into user for compatibility
-                    $user['followingCount'] = $stats['followingCount'] ?? 0;
-                    $user['followerCount'] = $stats['followerCount'] ?? 0;
-                    $user['heartCount'] = $stats['heartCount'] ?? 0;
+                    // If we don't have a user_id yet, get it from the response
+                    $userId = $user['id'] ?? null;
+                    if (!$userId && isset($params['user_id'])) {
+                        $userId = $params['user_id'];
+                    }
                     
-                    // In this API, user ID is used instead of secUid
+                    if (!$userId) {
+                        Log::error('Failed to get user_id from response');
+                        return redirect('/')->with('error', 'Unable to find user ID. Please try again with a different username.');
+                    }
+                    
+                    Log::info('Successfully retrieved user data for user_id: ' . $userId);
+                    
                     return view('profile', [
                         'user' => $user,
                         'userId' => $userId,
@@ -85,8 +90,14 @@ class TikTokController extends Controller
                         'username' => $username
                     ]);
                 } else {
-                    Log::warning('User data not found in API response: ' . json_encode($userData));
-                    return redirect('/')->with('error', 'User not found in TikTok');
+                    // For demo purposes, use tiktok's official account
+                    if ($username !== 'tiktok') {
+                        Log::warning('User not found, redirecting to tiktok official account as fallback');
+                        return redirect('/username/tiktok')->with('warning', 'User not found. Showing TikTok official account instead.');
+                    } else {
+                        Log::error('API returned error or unexpected format: ' . json_encode($userData));
+                        return redirect('/')->with('error', 'Unable to fetch TikTok user. API might be down.');
+                    }
                 }
             } else {
                 Log::error('API request failed: ' . $response->status() . ' - ' . $response->body());
@@ -111,7 +122,7 @@ class TikTokController extends Controller
             if ($response->successful()) {
                 $videoData = $response->json();
                 
-                if (isset($videoData['data']) && isset($videoData['data']['video'])) {
+                if ($videoData['code'] === 0 && isset($videoData['data']) && isset($videoData['data']['video'])) {
                     $video = $videoData['data']['video'];
                     $author = $videoData['data']['author'] ?? [];
                     
@@ -148,50 +159,52 @@ class TikTokController extends Controller
                 'cursor' => $cursor,
             ]);
 
+            Log::info('Posts API Response Status: ' . $response->status());
+
             if ($response->successful()) {
                 $responseData = $response->json();
                 
-                Log::info('API Response Structure: ' . json_encode(array_keys($responseData)));
+                Log::info('Posts API Response Structure: ' . json_encode(array_keys($responseData)));
                 
-                if (isset($responseData['data']) && isset($responseData['data']['videos'])) {
-                    // Format response to match our frontend expectations
+                if ($responseData['code'] === 0 && isset($responseData['data']) && isset($responseData['data']['videos'])) {
                     return response()->json([
-                        'data' => [
-                            'cursor' => $responseData['data']['cursor'] ?? 0,
-                            'hasMore' => $responseData['data']['hasMore'] ?? false,
-                            'items' => $responseData['data']['videos']
-                        ]
+                        'videos' => $responseData['data']['videos'],
+                        'cursor' => $responseData['data']['cursor'] ?? $cursor + $count,
+                        'hasMore' => $responseData['data']['hasMore'] ?? false
                     ]);
                 } else {
-                    Log::warning('No videos found in the response: ' . json_encode(array_keys($responseData)));
+                    Log::warning('No videos found in the response: ' . json_encode($responseData));
                     // Return empty data
                     return response()->json([
-                        'data' => [
-                            'cursor' => 0,
-                            'hasMore' => false,
-                            'items' => []
-                        ]
+                        'videos' => [],
+                        'cursor' => $cursor,
+                        'hasMore' => false
                     ]);
                 }
             } else {
-                Log::error('User posts API request failed: ' . $response->status());
+                Log::error('User posts API request failed: ' . $response->status() . ' - ' . $response->body());
                 return response()->json([
-                    'error' => 'API request failed',
-                    'status' => $response->status()
-                ], $response->status());
+                    'videos' => [],
+                    'cursor' => $cursor,
+                    'hasMore' => false,
+                    'error' => 'API request failed: ' . $response->status()
+                ], 200); // Still return 200 to handle error in frontend
             }
         } catch (\Exception $e) {
             Log::error('Exception in getUserPosts: ' . $e->getMessage());
             return response()->json([
+                'videos' => [],
+                'cursor' => $cursor,
+                'hasMore' => false,
                 'error' => $e->getMessage()
-            ], 500);
+            ], 200); // Still return 200 to handle error in frontend
         }
     }
     
-    // We don't have a specific popular posts endpoint in the new API,
-    // so we'll just return regular posts for now
     public function getPopularPosts(Request $request, $userId)
     {
+        // Since there's no specific popular posts endpoint,
+        // we'll use the user posts endpoint for now
         return $this->getUserPosts($request, $userId);
     }
 }

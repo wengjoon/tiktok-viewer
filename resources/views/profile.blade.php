@@ -294,6 +294,12 @@
             </div>
         </header>
         
+        @if(session('warning'))
+    <div class="bg-yellow-800 border border-yellow-700 text-yellow-200 px-4 py-3 my-4 mx-6 rounded relative" role="alert">
+        <span class="block sm:inline">{{ session('warning') }}</span>
+    </div>
+@endif
+        
         <!-- Profile Info -->
         <div class="px-6 py-8 border-b border-gray-800">
             <div class="flex items-center">
@@ -466,105 +472,115 @@
         }
         
         // Helper function to process videos with different structures
-        function processVideo(video) {
-            // Get video ID
-            const videoId = video.video_id || video.aweme_id || '';
-            
-            // Get video description
-            let videoDesc = video.title || 'No description';
-            
-            // Get video cover image - the new API has specific fields
-            const coverImage = video.cover || video.origin_cover || video.ai_dynamic_cover || '';
-            
-            // Get video URL - the new API provides this directly
-            const videoUrl = video.play || video.wmplay || '';
-            
-            // Get stats
-            const playCount = video.play_count || 0;
-            const likeCount = video.digg_count || 0;
-            const commentCount = video.comment_count || 0;
-            const shareCount = video.share_count || 0;
-            
-            // Get author info
-            const author = video.author || {};
-            const authorName = author.nickname || '';
-            const authorAvatar = author.avatar || '';
-            const authorUniqueId = author.unique_id || '';
-            
-            return {
-                id: videoId,
-                description: videoDesc,
-                coverImage: coverImage,
-                videoUrl: videoUrl,
-                stats: {
-                    playCount,
-                    likeCount,
-                    commentCount,
-                    shareCount
-                },
-                author: {
-                    name: authorName,
-                    avatar: authorAvatar,
-                    uniqueId: authorUniqueId
-                }
-            };
+function processVideo(video) {
+    console.log('Processing video:', video);
+    
+    // Get video ID
+    const videoId = video.video_id || video.id || video.aweme_id || '';
+    
+    // Get video description
+    let videoDesc = video.desc || video.title || 'No description';
+    
+    // Get video cover image - try different possible fields
+    const coverImage = video.cover || video.origin_cover || video.thumbnail_url || 
+                       (video.covers && video.covers.length > 0 ? video.covers[0] : '') || 
+                       '';
+    
+    // Get video URL - try different possible fields
+    const videoUrl = video.play || video.play_url || video.download_url || 
+                    (video.video && video.video.play_addr && video.video.play_addr.url_list && 
+                     video.video.play_addr.url_list.length > 0 ? video.video.play_addr.url_list[0] : '') || 
+                    '';
+    
+    // Get stats - ensure we have defaults in case fields don't exist
+    const playCount = parseInt(video.play_count || '0', 10);
+    const likeCount = parseInt(video.digg_count || '0', 10);
+    const commentCount = parseInt(video.comment_count || '0', 10);
+    const shareCount = parseInt(video.share_count || '0', 10);
+    
+    // Get author info
+    const author = video.author || {};
+    const authorName = author.nickname || video.author_name || '';
+    const authorAvatar = author.avatar || video.author_avatar || '';
+    const authorUniqueId = author.unique_id || video.author_unique_id || '';
+    
+    return {
+        id: videoId,
+        description: videoDesc,
+        coverImage: coverImage,
+        videoUrl: videoUrl,
+        stats: {
+            playCount,
+            likeCount,
+            commentCount,
+            shareCount
+        },
+        author: {
+            name: authorName,
+            avatar: authorAvatar,
+            uniqueId: authorUniqueId
         }
-        
+    };
+}
         function loadVideos() {
-            if (isLoading) return;
+    if (isLoading) return;
+    
+    isLoading = true;
+    document.getElementById('loadingIndicator').classList.remove('hidden');
+    document.getElementById('loadMoreContainer').classList.add('hidden');
+    
+    const endpoint = activeTab === 'posts' 
+        ? `/api/user/${userId}/videos` 
+        : `/api/user/${userId}/popular`;
+    
+    console.log(`Loading videos from ${endpoint}?cursor=${currentCursor}`);
+    
+    fetch(`${endpoint}?cursor=${currentCursor}`)
+        .then(response => response.json())
+        .then(data => {
+            isLoading = false;
+            document.getElementById('loadingIndicator').classList.add('hidden');
             
-            isLoading = true;
-            document.getElementById('loadingIndicator').classList.remove('hidden');
+            console.log('API Response:', data);
+            
+            if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
+                // Process and render videos
+                renderVideos(data.videos);
+                
+                // Update cursor for next page
+                if (data.hasMore) {
+                    currentCursor = data.cursor;
+                    document.getElementById('loadMoreContainer').classList.remove('hidden');
+                } else {
+                    document.getElementById('loadMoreContainer').classList.add('hidden');
+                }
+            } else {
+                // No videos or end of results
+                document.getElementById('loadMoreContainer').classList.add('hidden');
+                if (currentCursor === 0) {
+                    document.getElementById('videosContainer').innerHTML = `
+                        <div class="col-span-full text-center py-8">
+                            <p class="text-gray-400">No videos found for this account.</p>
+                        </div>
+                    `;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading videos:', error);
+            isLoading = false;
+            document.getElementById('loadingIndicator').classList.add('hidden');
             document.getElementById('loadMoreContainer').classList.add('hidden');
             
-            const endpoint = activeTab === 'posts' 
-                ? `/api/user/${userId}/videos` 
-                : `/api/user/${userId}/popular`;
-            
-            fetch(`${endpoint}?cursor=${currentCursor}`)
-                .then(response => response.json())
-                .then(data => {
-                    isLoading = false;
-                    document.getElementById('loadingIndicator').classList.add('hidden');
-                    
-                    if (data.videos && data.videos.length > 0) {
-                        // Process and render videos
-                        renderVideos(data.videos);
-                        
-                        // Update cursor for next page
-                        if (data.hasMore) {
-                            currentCursor = data.cursor;
-                            document.getElementById('loadMoreContainer').classList.remove('hidden');
-                        } else {
-                            document.getElementById('loadMoreContainer').classList.add('hidden');
-                        }
-                    } else {
-                        // No videos or end of results
-                        document.getElementById('loadMoreContainer').classList.add('hidden');
-                        if (currentCursor === 0) {
-                            document.getElementById('videosContainer').innerHTML = `
-                                <div class="col-span-full text-center py-8">
-                                    <p class="text-gray-400">No videos found</p>
-                                </div>
-                            `;
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading videos:', error);
-                    isLoading = false;
-                    document.getElementById('loadingIndicator').classList.add('hidden');
-                    document.getElementById('loadMoreContainer').classList.add('hidden');
-                    
-                    if (currentCursor === 0) {
-                        document.getElementById('videosContainer').innerHTML = `
-                            <div class="col-span-full text-center py-8">
-                                <p class="text-gray-400">Failed to load videos. Please try again later.</p>
-                            </div>
-                        `;
-                    }
-                });
-        }
+            if (currentCursor === 0) {
+                document.getElementById('videosContainer').innerHTML = `
+                    <div class="col-span-full text-center py-8">
+                        <p class="text-gray-400">Failed to load videos. Please try again later.</p>
+                    </div>
+                `;
+            }
+        });
+}
         
         function renderVideos(videos) {
             const container = document.getElementById('videosContainer');

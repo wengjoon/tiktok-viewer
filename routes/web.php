@@ -12,5 +12,7 @@ Route::get('/', function () {
 Route::get('/search', [TikTokController::class, 'search']);
 Route::get('/username/{username}', [TikTokController::class, 'getUserProfile']);
 Route::get('/video/{videoId}', [TikTokController::class, 'getVideo']);
-Route::get('/api/user-posts/{userId}', [TikTokController::class, 'getUserPosts']);
-Route::get('/api/popular-posts/{userId}', [TikTokController::class, 'getPopularPosts']);
+
+// API routes for fetching videos
+Route::get('/api/user/{userId}/videos', [TikTokController::class, 'getUserPosts']);
+Route::get('/api/user/{userId}/popular', [TikTokController::class, 'getPopularPosts']);
