@@ -36,78 +36,100 @@ class TikTokController extends Controller
     }
 
     public function getUserProfile($username)
-    {
-        Log::info('Fetching user profile for username: ' . $username);
+{
+    Log::info('Fetching user profile for username: ' . $username);
+    
+    try {
+        // For certain usernames, we know the user_id (for demo purposes)
+        $knownUserIds = [
+            'tiktok' => '107955'
+        ];
         
-        try {
-            // For certain usernames, we know the user_id (for demo purposes)
-            $knownUserIds = [
-                'tiktok' => '107955'
-            ];
-            
-            $params = [];
-            if (isset($knownUserIds[strtolower($username)])) {
-                $params['user_id'] = $knownUserIds[strtolower($username)];
-                Log::info('Using known user_id: ' . $params['user_id']);
-            } else {
-                $params['unique_id'] = $username;
-                Log::info('Using unique_id parameter: ' . $params['unique_id']);
-            }
-            
-            $response = Http::withHeaders([
-                'x-rapidapi-host' => $this->apiHost,
-                'x-rapidapi-key' => $this->apiKey,
-            ])->get('https://' . $this->apiHost . '/user/info', $params);
-            
-            Log::info('API Response Status: ' . $response->status());
-            
-            if ($response->successful()) {
-                $userData = $response->json();
-                
-                Log::info('API Response Structure: ' . json_encode(array_keys($userData)));
-                
-                if ($userData['code'] === 0 && isset($userData['data']) && isset($userData['data']['user'])) {
-                    $user = $userData['data']['user'];
-                    $stats = $userData['data']['stats'] ?? [];
-                    
-                    // If we don't have a user_id yet, get it from the response
-                    $userId = $user['id'] ?? null;
-                    if (!$userId && isset($params['user_id'])) {
-                        $userId = $params['user_id'];
-                    }
-                    
-                    if (!$userId) {
-                        Log::error('Failed to get user_id from response');
-                        return redirect('/')->with('error', 'Unable to find user ID. Please try again with a different username.');
-                    }
-                    
-                    Log::info('Successfully retrieved user data for user_id: ' . $userId);
-                    
-                    return view('profile', [
-                        'user' => $user,
-                        'userId' => $userId,
-                        'activeTab' => 'posts',
-                        'username' => $username
-                    ]);
-                } else {
-                    // For demo purposes, use tiktok's official account
-                    if ($username !== 'tiktok') {
-                        Log::warning('User not found, redirecting to tiktok official account as fallback');
-                        return redirect('/username/tiktok')->with('warning', 'User not found. Showing TikTok official account instead.');
-                    } else {
-                        Log::error('API returned error or unexpected format: ' . json_encode($userData));
-                        return redirect('/')->with('error', 'Unable to fetch TikTok user. API might be down.');
-                    }
-                }
-            } else {
-                Log::error('API request failed: ' . $response->status() . ' - ' . $response->body());
-                return redirect('/')->with('error', 'Failed to fetch user data. API error: ' . $response->status());
-            }
-        } catch (\Exception $e) {
-            Log::error('Exception in getUserProfile: ' . $e->getMessage());
-            return redirect('/')->with('error', 'An error occurred: ' . $e->getMessage());
+        $params = [];
+        if (isset($knownUserIds[strtolower($username)])) {
+            $params['user_id'] = $knownUserIds[strtolower($username)];
+            Log::info('Using known user_id: ' . $params['user_id']);
+        } else {
+            $params['unique_id'] = $username;
+            Log::info('Using unique_id parameter: ' . $params['unique_id']);
         }
+        
+        $response = Http::withHeaders([
+            'x-rapidapi-host' => $this->apiHost,
+            'x-rapidapi-key' => $this->apiKey,
+        ])->get('https://' . $this->apiHost . '/user/info', $params);
+        
+        Log::info('API Response Status: ' . $response->status());
+        
+        if ($response->successful()) {
+            $userData = $response->json();
+            
+            Log::info('API Response Structure: ' . json_encode(array_keys($userData)));
+            
+            if ($userData['code'] === 0 && isset($userData['data'])) {
+                // Normalize the user data structure
+                $user = [];
+                
+                // Check different possible locations for user data
+                if (isset($userData['data']['user'])) {
+                    $user = $userData['data']['user'];
+                } else if (isset($userData['data'])) {
+                    $user = $userData['data'];
+                }
+                
+                // Get stats from different possible locations
+                $stats = [];
+                if (isset($userData['data']['stats'])) {
+                    $stats = $userData['data']['stats'];
+                } else if (isset($user['stats'])) {
+                    $stats = $user['stats'];
+                }
+                
+                // Map the stats to the expected fields
+                if (!empty($stats)) {
+                    $user['followingCount'] = $stats['followingCount'] ?? $stats['following_count'] ?? 0;
+                    $user['followerCount'] = $stats['followerCount'] ?? $stats['follower_count'] ?? 0;
+                    $user['heartCount'] = $stats['heartCount'] ?? $stats['heart_count'] ?? $stats['digg_count'] ?? 0;
+                }
+                
+                // If we don't have a user_id yet, get it from the response
+                $userId = $user['id'] ?? null;
+                if (!$userId && isset($params['user_id'])) {
+                    $userId = $params['user_id'];
+                }
+                
+                if (!$userId) {
+                    Log::error('Failed to get user_id from response');
+                    return redirect('/')->with('error', 'Unable to find user ID. Please try again with a different username.');
+                }
+                
+                Log::info('Successfully retrieved user data for user_id: ' . $userId);
+                
+                return view('profile', [
+                    'user' => $user,
+                    'userId' => $userId,
+                    'activeTab' => 'posts',
+                    'username' => $username
+                ]);
+            } else {
+                // For demo purposes, use tiktok's official account
+                if ($username !== 'tiktok') {
+                    Log::warning('User not found, redirecting to tiktok official account as fallback');
+                    return redirect('/username/tiktok')->with('warning', 'User not found. Showing TikTok official account instead.');
+                } else {
+                    Log::error('API returned error or unexpected format: ' . json_encode($userData));
+                    return redirect('/')->with('error', 'Unable to fetch TikTok user. API might be down.');
+                }
+            }
+        } else {
+            Log::error('API request failed: ' . $response->status() . ' - ' . $response->body());
+            return redirect('/')->with('error', 'Failed to fetch user data. API error: ' . $response->status());
+        }
+    } catch (\Exception $e) {
+        Log::error('Exception in getUserProfile: ' . $e->getMessage());
+        return redirect('/')->with('error', 'An error occurred: ' . $e->getMessage());
     }
+}
 
     public function getVideo($videoId)
     {
