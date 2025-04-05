@@ -676,8 +676,68 @@ function processVideo(video) {
         createTime: video.create_time || 0
     };
 }
-
-// Update the renderVideos function to ensure thumbnails display correctly
+        
+        function loadVideos() {
+            if (isLoading) return;
+            
+            isLoading = true;
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+            document.getElementById('loadMoreContainer').classList.add('hidden');
+            
+            const endpoint = activeTab === 'posts' 
+                ? `/api/user/${userId}/videos` 
+                : `/api/user/${userId}/popular`;
+            
+            console.log(`Loading videos from ${endpoint}?cursor=${currentCursor}`);
+            
+            fetch(`${endpoint}?cursor=${currentCursor}`)
+                .then(response => response.json())
+                .then(data => {
+                    isLoading = false;
+                    document.getElementById('loadingIndicator').classList.add('hidden');
+                    
+                    console.log('API Response:', data);
+                    
+                    if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
+                        // Process and render videos
+                        renderVideos(data.videos);
+                        
+                        // Update cursor for next page
+                        if (data.hasMore) {
+                            currentCursor = data.cursor;
+                            document.getElementById('loadMoreContainer').classList.remove('hidden');
+                        } else {
+                            document.getElementById('loadMoreContainer').classList.add('hidden');
+                        }
+                    } else {
+                        // No videos or end of results
+                        document.getElementById('loadMoreContainer').classList.add('hidden');
+                        if (currentCursor === 0) {
+                            document.getElementById('videosContainer').innerHTML = `
+                                <div class="col-span-full text-center py-8">
+                                    <p class="text-gray-400">No videos found for this account.</p>
+                                </div>
+                            `;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading videos:', error);
+                    isLoading = false;
+                    document.getElementById('loadingIndicator').classList.add('hidden');
+                    document.getElementById('loadMoreContainer').classList.add('hidden');
+                    
+                    if (currentCursor === 0) {
+                        document.getElementById('videosContainer').innerHTML = `
+                            <div class="col-span-full text-center py-8">
+                                <p class="text-gray-400">Failed to load videos. Please try again later.</p>
+                            </div>
+                        `;
+                    }
+                });
+        }
+        
+        // Update the renderVideos function to ensure thumbnails display correctly
 function renderVideos(videos) {
     const container = document.getElementById('videosContainer');
     
@@ -747,132 +807,6 @@ function renderVideos(videos) {
         container.appendChild(videoCard);
     });
 }
-        
-        function loadVideos() {
-            if (isLoading) return;
-            
-            isLoading = true;
-            document.getElementById('loadingIndicator').classList.remove('hidden');
-            document.getElementById('loadMoreContainer').classList.add('hidden');
-            
-            const endpoint = activeTab === 'posts' 
-                ? `/api/user/${userId}/videos` 
-                : `/api/user/${userId}/popular`;
-            
-            console.log(`Loading videos from ${endpoint}?cursor=${currentCursor}`);
-            
-            fetch(`${endpoint}?cursor=${currentCursor}`)
-                .then(response => response.json())
-                .then(data => {
-                    isLoading = false;
-                    document.getElementById('loadingIndicator').classList.add('hidden');
-                    
-                    console.log('API Response:', data);
-                    
-                    if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
-                        // Process and render videos
-                        renderVideos(data.videos);
-                        
-                        // Update cursor for next page
-                        if (data.hasMore) {
-                            currentCursor = data.cursor;
-                            document.getElementById('loadMoreContainer').classList.remove('hidden');
-                        } else {
-                            document.getElementById('loadMoreContainer').classList.add('hidden');
-                        }
-                    } else {
-                        // No videos or end of results
-                        document.getElementById('loadMoreContainer').classList.add('hidden');
-                        if (currentCursor === 0) {
-                            document.getElementById('videosContainer').innerHTML = `
-                                <div class="col-span-full text-center py-8">
-                                    <p class="text-gray-400">No videos found for this account.</p>
-                                </div>
-                            `;
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading videos:', error);
-                    isLoading = false;
-                    document.getElementById('loadingIndicator').classList.add('hidden');
-                    document.getElementById('loadMoreContainer').classList.add('hidden');
-                    
-                    if (currentCursor === 0) {
-                        document.getElementById('videosContainer').innerHTML = `
-                            <div class="col-span-full text-center py-8">
-                                <p class="text-gray-400">Failed to load videos. Please try again later.</p>
-                            </div>
-                        `;
-                    }
-                });
-        }
-        
-        function renderVideos(videos) {
-            const container = document.getElementById('videosContainer');
-            
-            videos.forEach(video => {
-                // Process the video to normalize data structure
-                const processedVideo = processVideo(video);
-                currentVideos.push(processedVideo);
-                
-                // Create video card
-                const videoCard = document.createElement('div');
-                videoCard.className = 'video-card';
-                videoCard.onclick = () => openVideoPopup(processedVideo.id);
-                
-                // Format stats
-                const formattedViews = formatNumber(processedVideo.stats.playCount);
-                const formattedLikes = formatNumber(processedVideo.stats.likeCount);
-                
-                // Check if we have images (for photo posts) or just a regular video
-                if (video.images && video.images.length > 0) {
-                    // This is a photo post
-                    videoCard.innerHTML = `
-                        <div class="video-thumbnail relative pb-[177%]">
-                            <img 
-                                src="${video.images[0]}" 
-                                alt="${processedVideo.description}" 
-                                class="absolute top-0 left-0 w-full h-full object-cover"
-                                loading="lazy"
-                            >
-                            <div class="absolute top-2 right-2 bg-black bg-opacity-50 px-2 py-1 rounded-full">
-                                <i class="fas fa-images text-white"></i>
-                            </div>
-                            <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-xs text-white">
-                                <i class="fas fa-heart mr-1"></i>${formattedLikes}
-                            </div>
-                        </div>
-                        <div class="p-3">
-                            <p class="text-sm line-clamp-2">${processedVideo.description}</p>
-                        </div>
-                    `;
-                } else {
-                    // This is a regular video post
-                    videoCard.innerHTML = `
-                        <div class="video-thumbnail relative pb-[177%]">
-                            <img 
-                                src="${processedVideo.coverImage}" 
-                                alt="${processedVideo.description}" 
-                                class="absolute top-0 left-0 w-full h-full object-cover"
-                                loading="lazy"
-                            >
-                            <div class="play-button">
-                                <i class="fas fa-play"></i>
-                            </div>
-                            <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-xs text-white">
-                                <i class="fas fa-play mr-1"></i>${formattedViews}
-                            </div>
-                        </div>
-                        <div class="p-3">
-                            <p class="text-sm line-clamp-2">${processedVideo.description}</p>
-                        </div>
-                    `;
-                }
-                
-                container.appendChild(videoCard);
-            });
-        }
         
         function formatNumber(num) {
             if (num >= 1000000) {
